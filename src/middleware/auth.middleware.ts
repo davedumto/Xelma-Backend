@@ -5,6 +5,18 @@ import logger from '../utils/logger';
 
 const prisma = new PrismaClient();
 
+// Re-export UserRole for backwards compatibility
+export { UserRole };
+
+// Export AuthRequest type for use in routes
+export interface AuthRequest extends Request {
+  user?: {
+    userId: string;
+    walletAddress: string;
+    role: UserRole;
+  };
+}
+
 // Extend Express Request to include user
 declare global {
   namespace Express {
@@ -115,4 +127,57 @@ export const requireOracle = async (
 
     next();
   });
+};
+
+/**
+ * Optional authentication middleware
+ * Validates token if present, but doesn't require it
+ */
+export const optionalAuthentication = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      // No token provided, continue without user
+      next();
+      return;
+    }
+
+    const token = authHeader.substring(7);
+    const decoded = verifyToken(token);
+
+    if (!decoded) {
+      // Invalid token, continue without user
+      next();
+      return;
+    }
+
+    // Get user from database
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.userId },
+      select: {
+        id: true,
+        walletAddress: true,
+        role: true,
+      },
+    });
+
+    if (user) {
+      req.user = {
+        userId: user.id,
+        walletAddress: user.walletAddress,
+        role: user.role,
+      };
+    }
+
+    next();
+  } catch (error) {
+    // On error, continue without user
+    logger.warn('Optional authentication error:', error);
+    next();
+  }
 };
