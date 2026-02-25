@@ -47,6 +47,11 @@ class RoundSchedulerService {
         return;
       }
 
+      if (priceOracle.isStale()) {
+        logger.warn("[Round Scheduler] Skipping round creation: oracle price data is stale");
+        return;
+      }
+
       const mode = this.getMode();
 
       const round = await roundService.startRound(mode, startPrice, 1);
