@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import roundService from '../services/round.service';
 import resolutionService from '../services/resolution.service';
 import { requireAdmin, requireOracle } from '../middleware/auth.middleware';
+import { adminRoundRateLimiter, oracleResolveRateLimiter } from '../middleware/rateLimiter.middleware';
 import { validate } from '../middleware/validate.middleware';
 import { startRoundSchema, resolveRoundSchema } from '../schemas/rounds.schema';
 import logger from '../utils/logger';
@@ -76,6 +77,11 @@ const router = Router();
  *         content:
  *           application/json:
  *             example: { error: "Admin access required" }
+ *       429:
+ *         description: Too many requests
+ *         content:
+ *           application/json:
+ *             example: { error: "Too Many Requests", message: "Too many round creation requests. Please wait before creating another round." }
  *       500:
  *         description: Internal server error
  *         content:
@@ -89,7 +95,7 @@ const router = Router();
  *             -H "Authorization: Bearer $TOKEN" \\
  *             -d '{"mode":0,"startPrice":0.1234,"duration":300}'
  */
-router.post('/start', requireAdmin, validate(startRoundSchema), async (req: Request, res: Response) => {
+router.post('/start', requireAdmin, adminRoundRateLimiter, validate(startRoundSchema), async (req: Request, res: Response) => {
     try {
         const { mode, startPrice, duration } = req.body;
         const gameMode = mode === 0 ? 'UP_DOWN' : 'LEGENDS';
@@ -269,6 +275,11 @@ router.get('/active', async (req: Request, res: Response) => {
  *         content:
  *           application/json:
  *             example: { error: "Oracle or Admin access required" }
+ *       429:
+ *         description: Too many requests
+ *         content:
+ *           application/json:
+ *             example: { error: "Too Many Requests", message: "Too many resolve requests. Please wait before resolving another round." }
  *       500:
  *         description: Internal server error
  *         content:
@@ -282,7 +293,7 @@ router.get('/active', async (req: Request, res: Response) => {
  *             -H "Authorization: Bearer $TOKEN" \\
  *             -d '{"finalPrice":0.2345}'
  */
-router.post('/:id/resolve', requireOracle, validate(resolveRoundSchema), async (req: Request, res: Response) => {
+router.post('/:id/resolve', requireOracle, oracleResolveRateLimiter, validate(resolveRoundSchema), async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
         const { finalPrice } = req.body;

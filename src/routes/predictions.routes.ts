@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import predictionService from '../services/prediction.service';
 import { authenticateUser } from '../middleware/auth.middleware';
+import { predictionRateLimiter } from '../middleware/rateLimiter.middleware';
 import { validate } from '../middleware/validate.middleware';
 import { submitPredictionSchema } from '../schemas/predictions.schema';
 import logger from '../utils/logger';
@@ -62,6 +63,11 @@ const router = Router();
  *         content:
  *           application/json:
  *             example: { error: "No token provided" }
+ *       429:
+ *         description: Too many requests
+ *         content:
+ *           application/json:
+ *             example: { error: "Too Many Requests", message: "Too many prediction submissions. Please wait before submitting another." }
  *       500:
  *         description: Internal server error
  *         content:
@@ -75,7 +81,7 @@ const router = Router();
  *             -H "Authorization: Bearer $TOKEN" \\
  *             -d '{"roundId":"round-id","amount":10,"side":"UP"}'
  */
-router.post('/submit', authenticateUser, validate(submitPredictionSchema), async (req: Request, res: Response) => {
+router.post('/submit', authenticateUser, predictionRateLimiter, validate(submitPredictionSchema), async (req: Request, res: Response) => {
     try {
         const { roundId, amount, side, priceRange } = req.body;
         const userId = req.user!.userId;
